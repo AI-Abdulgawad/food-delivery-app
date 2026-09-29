@@ -1,0 +1,13 @@
+/tmp
+/out-tsc
+
+core-service/node_modules
+core-service/npm-debug.log*
+core-service/yarn-debug.log*
+core-service/yarn-error.log*
+core-service/.pnp
+core-service.pnp.js
+core-service/.*
+core-service/dist
+.idea
+.vscode/*
