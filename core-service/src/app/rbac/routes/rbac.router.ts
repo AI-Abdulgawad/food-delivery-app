@@ -1,10 +1,11 @@
 import {Router} from "express";
-import {branchMemberController} from "../controller/branch-member.controller.js";
+import {BranchMemberController} from "../controller/branch-member.controller.js";
 import {authenticate} from "../../../lib/filters/authenticate.js";
 import {requireRestaurantMember} from "../../../lib/filters/require_restaurant_member.js";
 import {RBACAction, rbacGuard, RBACResource} from "../../../lib/filters/restuarant_rbac.js";
+import {container} from "tsyringe";
 
-
+const branchMemberController = container.resolve(BranchMemberController);
 export const rbacRouter = Router();
 rbacRouter.post('/restaurants/:restaurantId/members',authenticate,requireRestaurantMember('restaurantId'),rbacGuard.restaurantRbac({resource: RBACResource.member,action: RBACAction.CREATE}),branchMemberController.addBranchMember.bind(branchMemberController));
 rbacRouter.get('/restaurants/:restaurantId/members',authenticate,requireRestaurantMember('restaurantId'),rbacGuard.restaurantRbac({resource: RBACResource.member,action: RBACAction.READ}),branchMemberController.listmembers.bind(branchMemberController));

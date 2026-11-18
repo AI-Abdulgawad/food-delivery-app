@@ -5,57 +5,67 @@ import {AppError} from "../../../lib/error_handler/app_error.js";
 import type {RestaurantStatus} from "../entity/restaurant_status_types.js";
 import type {UpdateRestaurantInfoDto} from "../dto/UpdateRestaurantInfo.js";
 import {pickDefined} from "../../../lib/validation/validator.js";
+import {
+    buildPaginationResult,
+    type FilterParams,
+    type PaginationParams
+} from "../../../lib/pagination/cursor-pagination.js";
+import {db} from "../../../lib/knex/knex.js";
 
 export class RestaurantService {
 
 
-    async getRestaurant(id:number){
-        return await restaurantRepository.findRestaurantById(id)
+    async getRestaurant(id: number, trx=db) {
+        return await restaurantRepository.findRestaurantById(id,trx)
     }
 
 
     async addRestaurant(addRestaurantDto: AddRestaurantDto) {
         const restaurantWithSameName = await restaurantRepository.findRestaurantByName(addRestaurantDto.name)
-        if(restaurantWithSameName == undefined){
+        if (restaurantWithSameName == undefined) {
             const restaurant = new Restaurant(addRestaurantDto);
             return restaurantRepository.addRestaurant(restaurant);
-        }else {
+        } else {
             throw new AppError('Restaurant with the same name already exists');
         }
     }
 
-    async updateStatus(id:number, status: RestaurantStatus) {
+    async updateStatus(id: number, status: RestaurantStatus) {
         return await restaurantRepository.updateRestaurantStatus(id, status)
 
     }
 
     async updateRestaurantInfo(restaurantId: number, dto: UpdateRestaurantInfoDto) {
         const updateData = pickDefined(dto)
-        if(Object.keys(updateData).length) {
+        if (Object.keys(updateData).length) {
             throw new AppError('NO INFO TO UPDATE restaurant info');
         }
         return await restaurantRepository.updateRestaurantInfo(restaurantId, updateData);
 
     }
 
-    async findRestaurantsIdOfOwner(owner_id:number){
+    async findRestaurantsIdOfOwner(owner_id: number) {
         return restaurantRepository.findRestaurantsByOwnerId(owner_id)
     }
-     hasAccessToRestaurant(role:string | undefined,restaurantId:number,restaurantIdList:number[]|undefined){
-        if(role == undefined){
+
+    hasAccessToRestaurant(role: string | undefined, restaurantId: number, restaurantIdList: number[] | undefined) {
+        if (role == undefined) {
             return false
-         }
-        if(role == 'admin') {
+        }
+        if (role == 'admin') {
             return true
         }
-        if(role == 'restaurant_user') {
+        if (role == 'restaurant_user') {
             return restaurantIdList?.includes(restaurantId)
         }
         return false
     }
 
-    async getAllRestaurant() {
-        return await restaurantRepository.findAllRestaurant()
+    async getAllRestaurant(paginationParams: PaginationParams,filterParams:FilterParams[]) {
+
+        const rows =  await restaurantRepository.findAllRestaurant(filterParams,paginationParams)
+        return buildPaginationResult(rows,paginationParams.limit,paginationParams.sortBy)
+
     }
 }
 export const restaurantService = new RestaurantService();

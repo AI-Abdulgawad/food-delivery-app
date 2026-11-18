@@ -26,20 +26,20 @@ class RBAC {
     restaurantRbac(options: RBACOptions): RequestHandler {
         return async (req: Request, res: Response, next: NextFunction) => {
             if (req.user?.role === SystemRole.ADMIN) {
-                next()
-            }
-            if (req.restaurantUser && req.user?.role === SystemRole.RESTAURANT_USER) {
+                return next()
+
+            }else if (req.restaurantUser && req.user?.role === SystemRole.RESTAURANT_USER) {
                 const permissions = await permissionCacheService.getPermissionsByRoleName(req.restaurantUser.roleName!)
                 const hasAccess = permissionCacheService.hasPermission(permissions, options.resource, options.action)
                 if (hasAccess) {
-                    next()
+                    return next()
                 } else {
                     return res.status(403).send("permission denied")
                 }
 
             }
 
-            return res.status(401).send("Not authorized")
+
 
         }
 
@@ -48,7 +48,7 @@ class RBAC {
 
     requireAdminAccess(req: Request, res: Response, next: NextFunction){
         if (req.user?.role === SystemRole.ADMIN) {
-            next()
+            return next()
         }
         return res.status(403).send("permission denied")
 }

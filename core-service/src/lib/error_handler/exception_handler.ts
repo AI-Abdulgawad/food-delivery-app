@@ -15,7 +15,7 @@ class ExceptionHandler  {
             timestamp: Date.now(),
         })
 
-       res.status(500).json({message: error.message})
+       return res.status(500).json({message: error.message})
 
     }
 

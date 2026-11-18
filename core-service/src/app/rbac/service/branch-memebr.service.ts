@@ -1,4 +1,4 @@
-import type {AddMemberDto} from "../dto/add-member.dto.js";
+import type {AddBranchMemberDto} from "../dto/add-branch-member.dto.js";
 import {AppError} from "../../../lib/error_handler/app_error.js";
 import {restaurantMemberRepo} from "../repository/restuarant-member.repo.js";
 import {RestaurantMember} from "../entity/resturant_member.entity.js";
@@ -9,9 +9,7 @@ import {userRepository} from "../../user/repository/UserRepository.js";
 import {User} from "../../user/entity/user_entity.js";
 import {db} from "../../../lib/knex/knex.js";
 
-import {passwordResetRepo} from "../../auth/respository/password.reset.repo.js";
-import {PasswordReset} from "../../auth/entity/password_reset_entity.js";
-import {generateOTP, generateOTPHash} from "../../../lib/auth_utils/otp.js";
+
 import {userAlreadyExistException} from "../../../lib/error_handler/app_defined_errors.js";
 import {restaurantBranchRepository} from "../../restaurant_branch/repository/restaurantBranch.repository.js";
 import {rolePermissionRepo} from "../repository/role-permission.repo.js";
@@ -20,49 +18,87 @@ import {SystemRole} from "../../user/enums/system_role.js";
 import {restaurantBranchService} from "../../restaurant_branch/service/restaurantBranch.service.js";
 import type {UpdateMemberBranchesDto} from "../dto/update_member_branches.dto.js";
 import {permissionCacheService} from "./permission-cache.service.js";
+import {delay, inject, injectable} from "tsyringe";
+import {MailJetProvider} from "../../../pkg/email/MailJetProvider.js";
+import container from "../../../lib/di/container.js";
+import path from "node:path";
+import {readFile} from "node:fs/promises";
+import {restaurantService} from "../../restaurant/service/restaurant.service.js";
+import {TOKENS} from "../../../lib/di/tokens.js";
+import {userService, UserService} from "../../user/service/user.service.js";
+import {AuthService} from "../../auth/service/AuthService.js";
+import {ForgetPasswordDTO} from "../../auth/DTO/forgetPassword.js";
+import {EMAIL_TYPE} from "../../auth/enums/auth.enum.js";
 
+
+
+@injectable()
 export class BranchMemberService {
+    private readonly authService:AuthService;
+    private readonly userService:UserService
+    private readonly mailJetProvider:MailJetProvider = container.resolve(TOKENS.MailJetProvider);
+    constructor
+    (@inject(delay( () => AuthService))authService:AuthService,
+     @inject(UserService) userService:UserService,
+    ) {
+        this.authService = authService;
+        this.userService = userService;
 
-    async addRestaurantBranchMember(restaurantId: number, dto: AddMemberDto) {
-
-        return await  db.transaction(async (trx)=> {  // 1. Create new user with no password
-
+    }
+    async addRestaurantBranchMember(restaurantId: number, dto: AddBranchMemberDto) {
 
 
-            // 1. create restaurant user
-            const exists = await userRepository.findUserByEmailOrPhone(dto.email,dto.phone)
-            if(exists){
+        return await db.transaction(async (trx) => {  // 1. Create new user with no password
+        // creating user
+
+        const exists = await userService.findUserByEmailOrPhone(dto.email,dto.phone,trx)
+            if(exists) {
                 throw userAlreadyExistException
-
             }
-            const userId = (await userRepository.createUser(new User({
-                email: dto.email,
-                passwordHash: '',
-                name: dto.name,
-                phone: dto.phone,
-                system_role: dto.role,
+           // contruct user object
+        const user = new User({
+            email: dto.email,
+            passwordHash: '',
+            name: dto.name,
+            phone: dto.phone,
+            system_role: dto.role,
 
-            }),trx)).id
-            // 2 password reset entry
-            const otp = generateOTP()
-            console.log("otp",otp)
-            const otpHash = generateOTPHash(otp)
-            const passwordReset = new PasswordReset({
-                userId,
-                otpHash: otpHash,
-                createdAt: new Date(),
+        })
+        // inserting user into the database
+        const addedUser:User = await userService.addUser(user,trx)
 
-            })
-            await passwordResetRepo.addPasswordReset(passwordReset,trx)
+        /////////////    constructing forget password object for email verification      /////////////////////
+
+        // sending invitation mail for password reset
+        const forgetPasswordDto:ForgetPasswordDTO = new ForgetPasswordDTO()
+        forgetPasswordDto.email = addedUser.email;
+
+
+
+        // constructing template members
+        const restaurant = await restaurantService.getRestaurant(restaurantId,trx);
+        if(!restaurant?.name) throw new AppError('Restaurant not found');
+
+        const templatePath = path.resolve(
+            import.meta.dirname,
+            '../template/member-invitation.html'
+        );
+        let template = await readFile(templatePath,'utf8')
+
+        template = template.replaceAll('{{memberName}}',addedUser.name)
+            .replaceAll('{{restaurantName}}',`${restaurant?.name}`)
+
+
+
             // 2. add Restaurant Member
-            console.log(`rrole${dto.restaurantRole}`)
-                const roleId:number = await rolePermissionRepo.findRoleIdByRoleName(dto.restaurantRole)
+            console.log(`role${dto.restaurantRole}`)
+                const roleId:number = await rolePermissionRepo.findRoleIdByRoleName(dto.restaurantRole,trx)
                 console.log('role_id',roleId)
                 if(!roleId || isNaN(roleId)){
                     throw new AppError("role does not exist")
                 }
                 const newMember = new RestaurantMember({
-                    user_id: userId,
+                    user_id: addedUser.id,
                     restaurant_id: restaurantId,
                     role_id: roleId,
                     status: MemberStatus.INACTIVE,
@@ -75,19 +111,21 @@ export class BranchMemberService {
                 if (dto.branchId && dto.branchId.length > 0)
                 {
                     const access: MemberAccess[] = []
-                    for (let idx in dto.branchId)
+                    for (const branch of dto.branchId)
                     {
-                        if(availableBranches.includes(dto.branchId[Number(idx)]!))
+                        if(availableBranches.includes(Number(branch)))
                         {
                             access.push(new MemberAccess(
                                 {
-                                    member_id: restaurantMemberId, branch_id: dto.branchId[Number(idx)]!
+                                    member_id: restaurantMemberId, branch_id: Number(branch)
                                 }))
                         }else {
                             throw new AppError('Invalid Branch ID')
                         }
                     }
                     await memberAccessRepo.addMemberBranchAccess(access,trx)
+                    await this.authService.forgetPassword(forgetPasswordDto,template,trx)
+
                 }else {
                     throw new AppError('branches must be provided')
                 }
@@ -206,4 +244,4 @@ export class BranchMemberService {
 }
 
 
-export const branchMemberService = new BranchMemberService();
+// export const branchMemberService = new BranchMemberService();

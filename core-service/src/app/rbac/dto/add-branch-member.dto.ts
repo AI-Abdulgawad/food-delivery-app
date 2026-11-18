@@ -2,7 +2,7 @@ import {IsArray, IsDefined, IsEmail, IsEnum, IsStrongPassword, MaxLength, MinLen
 import {RegisterDTO} from "../../auth/DTO/registerDTO.js";
 import { RestaurantRoleType} from "../rbac.enums.js";
 
-export class AddMemberDto extends RegisterDTO{
+export class AddBranchMemberDto extends RegisterDTO{
 
     @IsDefined()
     @IsArray()

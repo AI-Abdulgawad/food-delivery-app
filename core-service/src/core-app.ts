@@ -19,7 +19,7 @@ export  function createApp() {
 
     // parse json body
     app.use(express.json())
-
+    app.set('query parser','extended')
     // assign a uniqueId to the Request
     app.use(correlationId)
 

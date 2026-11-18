@@ -35,6 +35,13 @@ const schema = z.object({
     REFRESH_EXPIRES_IN:z.string(),
     NODE_ENV: z.string(),
     CORS_ORIGINS:z.string().default("http://localhost:8888"),
+    REDIS_HOST:z.string(),
+    REDIS_PORT:z.string(),
+    REDIS_PASSWORD:z.string(),
+    MAILJET_APIKEY:z.string(),
+    MAILJET_SECRET:z.string(),
+    MAILJET_FROM_NAME:z.string(),
+    MAILJET_FROM_EMAIL:z.string(),
 })
 
 const parsed = schema.parse(process.env)
@@ -52,6 +59,7 @@ export const env = {
         //D:\Node\food-deivery-app\src\lib\config\env
         migrationDirectory: path.resolve(import.meta.dirname,'../../migration'),
         migrationExtension: parsed.DB_MIGRATION_EXTENSION,
+
     },
     jwt: {
         accessSecret: parsed.ACCESS_SECRET,
@@ -62,6 +70,18 @@ export const env = {
     NODE_ENV: parsed.NODE_ENV,
     cors: {
         origins: parsed.CORS_ORIGINS.split(","),
+    },
+    redis: {
+        host: parsed.REDIS_HOST,
+        password: parsed.REDIS_PASSWORD,
+        port: parseInt(parsed.REDIS_PORT, 10),
+    },
+    emailProvider: {
+        apiKey: parsed.MAILJET_APIKEY,
+        apiSecret: parsed.MAILJET_SECRET,
+        fromEmail: parsed.MAILJET_FROM_EMAIL,
+        fromName: parsed.MAILJET_FROM_NAME,
+
     }
 
 }

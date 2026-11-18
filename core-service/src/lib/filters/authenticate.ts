@@ -22,13 +22,11 @@ export function authenticate(req: Request, res: Response, next: NextFunction) {
                 restaurantId: payload.restaurantId ?? [],
                 branchId: payload.branchId ?? [],
                 roleName: payload.restaurantRoleName!
-
-
         }
 
+        console.log('Authenticated user', payload)
 
-
-            next()
+           return  next()
 
 
     }catch (err) {

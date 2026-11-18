@@ -12,7 +12,7 @@ export  function requireBranchMember(paramName:string='branchId') {
         const branchId = parseInt(req.params[paramName] as string);
 
         if(req.user?.role === SystemRole.ADMIN) {
-            next()
+            return next()
         }
         if(!req.restaurantUser) {
             return res.status(401).json({message:"No restaurant found"});
@@ -25,7 +25,7 @@ export  function requireBranchMember(paramName:string='branchId') {
         if(!req.restaurantUser.branchId.includes(branchId)) {
             return res.status(401).json({message:"Permission denied"});
         }
-        next()
+        return next()
 
 
 

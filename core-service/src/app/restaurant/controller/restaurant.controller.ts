@@ -6,6 +6,8 @@ import {AppError} from "../../../lib/error_handler/app_error.js";
 import {RestaurantStatus} from "../entity/restaurant_status_types.js";
 import {UpdateRestaurantInfoDto} from "../dto/UpdateRestaurantInfo.js";
 import {sendSuccess} from "../../../lib/types/response_entity.js";
+import {parseFilterParams, parsePaginationParams} from "../../../lib/pagination/query-parser.js";
+import {PaginationParams,FilterParams} from "../../../lib/pagination/cursor-pagination.js";
 
 export class RestaurantController {
 
@@ -29,8 +31,21 @@ export class RestaurantController {
 
     async getAllRestaurant(req: Request, res: Response, next: NextFunction) {
         try {
+            let paginationParams:PaginationParams = new PaginationParams();
 
-            const restaurant = await restaurantService.getAllRestaurant()
+            if(Object.keys(req.query).includes('cursor'))
+                paginationParams = await validateBody(PaginationParams, req.query)
+
+            let filterParams: FilterParams[] = []
+            if(Object.keys(req.query).includes('filter')) {
+                const filterList: Object[] = parseFilterParams(req.query,['id','name','status'])
+                console.log(filterList);
+                // validating filter params
+                filterParams = await Promise.all(filterList.map(async (filter) => await validateBody(FilterParams, filter)))
+                console.log(paginationParams)
+                console.log(filterParams)
+            }
+            const restaurant = await restaurantService.getAllRestaurant(paginationParams,filterParams)
 
             if (restaurant != undefined) {
 

@@ -1,11 +1,11 @@
 import {validate} from 'class-validator'
 import {AppError} from "../error_handler/app_error.js";
-import {AddMemberDto} from "../../app/rbac/dto/add-member.dto.js";
+import {AddBranchMemberDto} from "../../app/rbac/dto/add-branch-member.dto.js";
 import {SystemRole} from "../../app/user/enums/system_role.js";
 
 export async function validateBody<T extends Object>  (cls: new() => T,body:unknown):Promise<T>  {
     const instance:T = Object.assign(new cls(),body);
-    if(instance instanceof AddMemberDto){
+    if(instance instanceof AddBranchMemberDto){
         instance.role = SystemRole.RESTAURANT_USER
     }
     const errors = await validate(instance,{whitelist:true});

@@ -5,7 +5,7 @@ import {
     userAlreadyExistException
 } from "../../../lib/error_handler/app_defined_errors.js";
 import {hashPassword, validatePassword} from "../../../lib/auth_utils/Bcrpyt.js";
-import {userService} from "../../user/service/user.service.js";
+import {UserService, userService} from "../../user/service/user.service.js";
 import type {LoginDTO} from "../DTO/login_dto.js";
 import {
     generateAccessToken,
@@ -15,7 +15,7 @@ import {
 } from "../../../lib/auth_utils/jwt_utils.js";
 import type {ForgetPasswordDTO} from "../DTO/forgetPassword.js";
 import {generateOTP, generateOTPHash, validateOTPHash} from "../../../lib/auth_utils/otp.js";
-import {passwordResetRepo} from "../respository/password.reset.repo.js";
+import {PasswordResetRepo} from "../respository/password.reset.repo.js";
 import {PasswordReset} from "../entity/password_reset_entity.js";
 import type {ResetPasswordDTO} from "../DTO/ResetPasswordDTO.js";
 import {AppError} from "../../../lib/error_handler/app_error.js";
@@ -23,10 +23,19 @@ import type {UpdateUserDto} from "../../user/UpdateUserDto.js";
 import {userRepository} from "../../user/repository/UserRepository.js";
 import {SystemRole} from "../../user/enums/system_role.js";
 import {restaurantService} from "../../restaurant/service/restaurant.service.js";
-import {branchMemberService} from "../../rbac/service/branch-memebr.service.js";
 import {rolePermissionRepo} from "../../rbac/repository/role-permission.repo.js";
 import {restaurantBranchService} from "../../restaurant_branch/service/restaurantBranch.service.js";
 import {RestaurantRoleType} from "../../rbac/rbac.enums.js";
+import {inject, injectable} from "tsyringe";
+import container from "../../../lib/di/container.js";
+import {BranchMemberService} from "../../rbac/service/branch-memebr.service.js";
+import path from "node:path";
+import {readFile} from "node:fs/promises";
+import {TimeUtils} from "../../../pkg/time/time-utils.js";
+import type {MailJetProvider} from "../../../pkg/email/MailJetProvider.js";
+import {TOKENS} from "../../../lib/di/tokens.js";
+import {EMAIL_TYPE} from "../enums/auth.enum.js";
+import {db} from "../../../lib/knex/knex.js";
 
 
 export interface Tokens {
@@ -34,16 +43,25 @@ export interface Tokens {
     refresh_token: string;
 }
 
-
+@injectable()
 export class AuthService {
-
-    constructor() {
-
+    private readonly mailProvider:MailJetProvider = container.resolve(TOKENS.MailJetProvider)
+    private readonly branchMemberService: BranchMemberService;
+    private readonly userService:UserService
+    private readonly passwordResetRepo:PasswordResetRepo
+    constructor(
+        @inject(UserService)userService:UserService,
+        @inject(PasswordResetRepo) passwordResetRepo:PasswordResetRepo,
+        @inject(BranchMemberService)branchMemberService:BranchMemberService)
+    {
+        this.userService = userService;
+        this.passwordResetRepo = passwordResetRepo;
+        this.branchMemberService = branchMemberService;
     }
-    async registerUser(registerDTO:RegisterDTO) {
+    async registerUser(registerDTO:RegisterDTO,trx=db) {
 
         // 1. CHECK if user exists
-        const isExist = await userService.findUserByEmailOrPhone(registerDTO.email,registerDTO.phone)
+        const isExist = await userService.findUserByEmailOrPhone(registerDTO.email,registerDTO.phone,trx)
         if(isExist){
             throw userAlreadyExistException
         }
@@ -59,7 +77,7 @@ export class AuthService {
             // is_active: registerDTO.is_active ?? true
         })
 
-        const savedUser:User = await userService.addUser(user)
+        const savedUser:User = await userService.addUser(user,trx)
 
         return {
                 userId: savedUser.id,
@@ -92,7 +110,7 @@ export class AuthService {
                     branchesId= await restaurantBranchService.findAllBranchesByOwnerId(user.id)
                     roleName = RestaurantRoleType.OWNER
                 }else  {
-                 const memberBranches = await branchMemberService.getAccessibleBranchesByUserId(user.id)
+                 const memberBranches = await this.branchMemberService.getAccessibleBranchesByUserId(user.id)
                     restaurantsId=memberBranches.restaurantId
                     branchesId= memberBranches.branchId
                 roleName = await rolePermissionRepo.findRoleNameByUserId(user.id)
@@ -117,33 +135,45 @@ export class AuthService {
         }
 
 
-    async forgetPassword(forgetPasswordDTO: ForgetPasswordDTO) {
-        const user = await userService.findUserByEmail(forgetPasswordDTO.email)
+    async forgetPassword(forgetPasswordDTO: ForgetPasswordDTO,html='',trx=db) {
+        const user = await userService.findUserByEmail(forgetPasswordDTO.email,trx)
         if(user){
+
+            const templatePath = path.resolve(
+                import.meta.dirname,
+                '../template/forget-password.html'
+            );
+
+            let template = html.length <= 0 ?await readFile(templatePath,'utf8'):html
             const otp = generateOTP()
+            template  = template.replace("{{otp}}",`${otp}`).replaceAll('{{appName}}','QUICKbite')
+                .replaceAll("{{username}}",user.name)
+
             console.log("otp",otp)
             const otpHash = generateOTPHash(otp)
             const passwordReset = new PasswordReset({
                 userId: user.id,
                 otpHash: otpHash,
                 createdAt: new Date(),
-                expiryDate: new Date(Date.now() + (2*60*1000)),
+                expiryDate: new Date(Date.now() + TimeUtils.toMS(10,'m')),
 
             })
-            const id = await passwordResetRepo.addPasswordReset(passwordReset)
+            const id = await this.passwordResetRepo.addPasswordReset(passwordReset,trx)
+            await this.mailProvider.send(user.email,"Password Reset Request",template)
+
         }
         return
     }
 
     async checkOTP(dto: ResetPasswordDTO) {
-       const passwordReset = await passwordResetRepo.retrievePasswordReset(dto.userId)
+       const passwordReset = await this.passwordResetRepo.retrievePasswordReset(dto.userId)
         if(!passwordReset) {
             throw new AppError('user_id dos not exist')
         }
         const isIdentical = validateOTPHash(parseInt(dto.otp,10),passwordReset.otpHash)
         if(isIdentical){
             if(!passwordReset.isExpired() && passwordReset.consumedAt === null) {
-                   const result = await passwordResetRepo.consumeOTP(passwordReset)
+                   const result = await this.passwordResetRepo.consumeOTP(passwordReset)
                     if(!result){
                         throw new AppError('Error updating OTP consumed_at')
                     }
@@ -182,7 +212,7 @@ export class AuthService {
     async acceptInvite(resetPasswordDto: ResetPasswordDTO) {
 
         const user = await this.checkOTP(resetPasswordDto)
-        const restaurantMemberId = await branchMemberService.activateRestaurantMember(user.id)
+        const restaurantMemberId = await this.branchMemberService.activateRestaurantMember(user.id)
         return {
             user:User.toEntity(user),
             memberId: restaurantMemberId,
@@ -190,4 +220,4 @@ export class AuthService {
 
     }
 }
-export const authService = new AuthService();
+// export const authService = new AuthService();

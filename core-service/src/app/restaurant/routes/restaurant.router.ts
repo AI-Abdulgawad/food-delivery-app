@@ -3,6 +3,7 @@ import {restaurantController} from "../controller/restaurant.controller.js";
 import {authenticate} from "../../../lib/filters/authenticate.js";
 import {RBACAction, rbacGuard, RBACResource} from "../../../lib/filters/restuarant_rbac.js";
 import {requireRestaurantMember} from "../../../lib/filters/require_restaurant_member.js";
+import { withCache } from "../../../lib/cache/withCache.js";
 
 
 export const restaurantRouter = express.Router();

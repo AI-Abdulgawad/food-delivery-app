@@ -17,7 +17,6 @@ class RestaurantBranchRepository {
         const result = await conn.raw(`
         SELECT
         b.id,
-        b.name,
         b.restaurant_id,
         b.address_text,
         b.label,

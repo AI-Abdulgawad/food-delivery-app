@@ -8,13 +8,17 @@ export  function requireRestaurantMember(paramName:string='restaurantId'):Reques
     return (req: Request, res: Response, next: NextFunction) => {
 
         if(!req.user) {
-            res.status(401).json({message:"UnAuthorized"});
-        }
+            return res.status(401).json({message:"UnAuthorized"});
+        }else {
+
+            if(req.user.role === SystemRole.ADMIN) {
+                console.log('Admin Acess RESTAURANT ' ,req.user)
+                return next()
+            }
+
             const restaurantId = parseInt(req.params[paramName] as string);
 
-            if(req.user?.role === SystemRole.ADMIN) {
-                next()
-            }
+
             if(!req.restaurantUser) {
                 return res.status(401).json({message:"No restaurant found"});
             }
@@ -26,7 +30,13 @@ export  function requireRestaurantMember(paramName:string='restaurantId'):Reques
             if(!req.restaurantUser.restaurantId.includes(restaurantId)) {
                 return res.status(401).json({message:"Permission denied"});
             }
-            next()
+            // if(req.user?.role === SystemRole.ADMIN) {
+            //     next()
+            //
+            // }
+            return next()
+        }
+
 
 
 

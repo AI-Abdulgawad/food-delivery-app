@@ -4,6 +4,7 @@ import {authenticate} from "../../../lib/filters/authenticate.js";
 import {requireBranchMember} from "../../../lib/filters/require_branch_member.js";
 import {requireRestaurantMember} from "../../../lib/filters/require_restaurant_member.js";
 import {RBACAction, rbacGuard, RBACResource} from "../../../lib/filters/restuarant_rbac.js";
+import {withCache} from "../../../lib/cache/withCache.js";
 
 
 export const restaurantBranchRouter =  Router();
@@ -12,7 +13,7 @@ export const restaurantBranchRouter =  Router();
 restaurantBranchRouter.post('/:restaurantId',authenticate,requireRestaurantMember('restaurantId'),rbacGuard.restaurantRbac({resource:RBACResource.branch,action:RBACAction.CREATE}),restaurantBranchController.createBranch.bind(restaurantBranchController));
 
 // get nearBy branches
-restaurantBranchRouter.get('/nearby',restaurantBranchController.nearbyBranches.bind(restaurantBranchController));
+restaurantBranchRouter.get('/nearby',withCache(3600),restaurantBranchController.nearbyBranches.bind(restaurantBranchController));
 
 // get all branches related to one restaurant
 restaurantBranchRouter.get('/restaurant/:restaurantId',restaurantBranchController.getAllRestaurantBranches.bind(restaurantBranchController));

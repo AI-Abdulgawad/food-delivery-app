@@ -16,6 +16,7 @@ export const TOKENS = {
     RestaurantBranchController:Symbol.for('RestaurantBranchController'),
     CustomerAddressController:Symbol.for('CustomerController'),
     BranchMemberController:Symbol.for('BranchMemberController'),
-
+    CacheProvider:Symbol.for('CacheProvider'),
     // repos
+    MailJetProvider:Symbol.for('MailJetProvider'),
 }

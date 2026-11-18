@@ -1,7 +1,7 @@
 import type {Request,Response,NextFunction} from "express";
 import {UpdateUserDto} from "../UpdateUserDto.js";
 import {validateBody} from "../../../lib/validation/validator.js";
-import {authService} from "../../auth/service/AuthService.js";
+import {AuthService} from "../../auth/service/AuthService.js";
 import {addAccessTokenCookie, addRefreshTokenCookie} from "../../../lib/auth_utils/cookies.js";
 import {
     decodeJwtToken, generateAccessToken, generateRefreshToken,
@@ -9,10 +9,15 @@ import {
     verifyAccessToken,
     verifyRefreshToken
 } from "../../../lib/auth_utils/jwt_utils.js";
+import {inject, injectable} from "tsyringe";
 
+@injectable()
 export class UserController {
 
-
+    authService: AuthService;
+    constructor( @inject(AuthService) authService: AuthService) {
+        this.authService = authService;
+    }
     async getUserInfo(req:Request,res:Response,next:NextFunction){
 
 
@@ -22,7 +27,7 @@ export class UserController {
     async updateUserNameOrPhone(req:Request,res:Response,next:NextFunction){
         let dto:UpdateUserDto = await validateBody(UpdateUserDto,req.body);
         if(dto != undefined){
-            const user = await authService.updateUser(dto,req.user?.user_id!)
+            const user = await this.authService.updateUser(dto,req.user?.user_id!)
             // updating jwt payloads
 
            const newPayload:JwtPayload = {
@@ -47,4 +52,4 @@ export class UserController {
 
 }
 
-export const userController = new UserController();
+// export const userController = new UserController();

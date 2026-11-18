@@ -1,8 +1,10 @@
 import  {PasswordReset} from "../entity/password_reset_entity.js";
 import {db} from "../../../lib/knex/knex.js";
 import {validateOTPHash} from "../../../lib/auth_utils/otp.js";
+import {injectable} from "tsyringe";
 
-class PasswordResetRepo {
+@injectable()
+export class PasswordResetRepo {
 
     async addPasswordReset(passwordReset: PasswordReset, trx=db){
         const  id:number = await trx('password_resets')
@@ -26,4 +28,4 @@ class PasswordResetRepo {
     }
 }
 
-export const passwordResetRepo = new PasswordResetRepo()
+// export const passwordResetRepo = new PasswordResetRepo()

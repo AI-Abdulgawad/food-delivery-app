@@ -4,8 +4,8 @@ import {User} from "../entity/user_entity.js";
 class UserRepository {
 
 
-    async findUserByEmailOrPhone(email:string,phone:string):Promise<Boolean> {
-        const result  = await db.raw(
+    async findUserByEmailOrPhone(email: string, phone: string, trx=db):Promise<Boolean> {
+        const result  = await trx.raw(
             `SELECT EXISTS  (SELECT 1 FROM users WHERE email=? OR phone=?) AS "exist"`
         ,[email, phone])
         return result.rows[0].exist
@@ -16,8 +16,8 @@ class UserRepository {
        return User.fromRow(result)
     }
 
-    async findUserByEmail(email: string) {
-        const userRow =  await db('users').select('*').where('email', email).returning('*').first()
+    async findUserByEmail(email: string,trx=db) {
+        const userRow =  await trx('users').select('*').where('email', email).returning('*').first()
         const user =  User.fromRow(userRow)
         console.log(user)
         return user
